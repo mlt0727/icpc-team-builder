@@ -2,6 +2,8 @@
 
 一个可重复使用的 ICPC 分队工具。Next.js + TypeScript + Tailwind CSS + dnd-kit；Supabase PostgreSQL、Anonymous Auth 和 Realtime；部署到 Vercel。
 
+当前项目：[GitHub 私有仓库](https://github.com/mlt0727/icpc-team-builder) · [正式学生页](https://icpc-team-builder-six.vercel.app/e/icpc-2026) · [管理页](https://icpc-team-builder-six.vercel.app/admin)。Vercel 已连接此仓库，`main` 为正式部署分支；后续推送由 Git 集成自动部署。环境变量在 Vercel 项目设置中管理，不提交到仓库。
+
 ## 两类网址
 
 | 用途 | 路径 |

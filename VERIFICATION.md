@@ -30,14 +30,15 @@
 
 ## 正式部署
 
-- Vercel Production：**READY**，最新部署 ID `dpl_34fpa12KZZA7w8zuyEeUMhFHjKc8`。
+- 初次手动部署验证：Vercel Production **READY**，部署 ID `dpl_34fpa12KZZA7w8zuyEeUMhFHjKc8`。后续版本由已连接的 GitHub `main` 分支自动部署；当前部署状态以 Vercel 为准。
 - 最新修复验证：从姓名卡片右侧空白处开始拖动，成功出现拖拽浮层；取消后未改变正式分组。右上角锁图标点击后进入 `/admin`，密码框可输入，Sign in 可点击；缺少服务端数据库密钥时返回明确配置提示，不授予管理会话。
 - 学生页：https://icpc-team-builder-six.vercel.app/e/icpc-2026
 - 管理页：https://icpc-team-builder-six.vercel.app/admin
 - 环境变量设置：https://vercel.com/lingtong-mengs-projects/icpc-team-builder/settings/environment-variables
 - 云端构建成功；公开访问学生页与管理页均返回 HTTP 200。真实浏览器加载 20 人、7 队、Live 状态，管理页中文提示正确；未登录日志 API 返回 401。
 - 部署后浏览器和 Vercel 最近一小时运行错误检查均未发现错误。日志后台的完整登录验证仍待 Supabase Secret key；尚未配置外部日志接收服务。
-- 直接从本地源码部署，尚未上传 GitHub。ZIP 不包含环境配置、构建产物或依赖目录；完整部署步骤见 README。
+- 源码已推送到私有仓库 https://github.com/mlt0727/icpc-team-builder ，现有 Vercel 项目已连接该仓库，正式分支为 `main`。本地 `origin` 和远程跟踪已设置。提交前已检查 `.env.local`、`.vercel` 及真实密码/密钥均未进入提交。
+- ZIP 不包含环境配置、构建产物或依赖目录；完整部署步骤见 README。
 
 ## 保留的测试证据
 
