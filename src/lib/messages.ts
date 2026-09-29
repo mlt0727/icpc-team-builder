@@ -5,6 +5,7 @@ export function friendlyError(error: unknown, fallback = "Couldn't connect. Plea
     TEAM_FULL: "Team is full.",
     AUTH_REQUIRED: "Your session expired. Refresh to reconnect.",
     INVALID_TEAM: "Please choose a valid team.",
+    INVALID_TEAM_NAME: "Use a team name of 40 characters or fewer.",
     EVENT_CLOSED: "This event is closed. The final teams are still visible.",
     NOT_FOUND: "This participant or event no longer exists.",
     DUPLICATE_NAME: "A name is repeated or already in this event. Check the list.",

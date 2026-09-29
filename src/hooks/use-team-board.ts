@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { friendlyError } from "@/lib/messages";
-import { mergeParticipants, type Participant, type TeamEvent } from "@/lib/types";
+import { mergeParticipants, mergeTeams, teamLabel, type Participant, type Team, type TeamEvent } from "@/lib/types";
 
 export function useTeamBoard(slug: string) {
   const [client] = useState(getSupabase);
   const [event, setEvent] = useState<TeamEvent | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
@@ -27,11 +28,16 @@ export function useTeamBoard(slug: string) {
       if (eventError) throw eventError;
       if (!alive.current || ticket !== generation.current) return false;
       if (!nextEvent) { setNotFound(true); setLoading(false); return false; }
-      const { data, error: listError } = await client.from("participants").select("*").eq("event_id", nextEvent.id).abortSignal(AbortSignal.timeout(15000));
+      const [{ data, error: listError }, { data: nextTeams, error: teamError }] = await Promise.all([
+        client.from("participants").select("*").eq("event_id", nextEvent.id).abortSignal(AbortSignal.timeout(15000)),
+        client.from("teams").select("*").eq("event_id", nextEvent.id).abortSignal(AbortSignal.timeout(15000)),
+      ]);
       if (listError) throw listError;
+      if (teamError) throw teamError;
       if (!alive.current || ticket !== generation.current) return false;
       setEvent(nextEvent);
       setParticipants((current) => mergeParticipants(current, data ?? []));
+      setTeams((current) => mergeTeams(current, nextTeams ?? []));
       setNotFound(false);
       setError("");
       setLoading(false);
@@ -69,6 +75,9 @@ export function useTeamBoard(slug: string) {
         if (payload.eventType !== "DELETE") {
           setParticipants((current) => mergeParticipants(current, [payload.new as Participant]));
         } else { void resync(); }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "teams", filter: `event_id=eq.${event.id}` }, (payload) => {
+        setTeams((current) => mergeTeams(current, [payload.new as Team]));
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "events", filter: `id=eq.${event.id}` }, () => { void resync(); })
       .subscribe((state) => {
@@ -117,12 +126,34 @@ export function useTeamBoard(slug: string) {
       const { data, error: moveError } = await client.rpc("move_participant", { p_participant_id: participantId, p_team_number: team }).abortSignal(AbortSignal.timeout(15000));
       if (moveError) throw moveError;
       setParticipants((current) => mergeParticipants(current, [data]));
-      setNotice(team === null ? "Moved to Unassigned." : `Moved to Team ${team}.`);
+      setNotice(team === null ? "Moved to Unassigned." : `Moved to ${teamLabel(teams.find((t) => t.team_number === team), team)}.`);
     } catch (e) {
       setNotice(friendlyError(e, "Couldn't confirm the move. Checking the latest teams…"));
       await refresh();
     } finally { mutation.current = false; setBusy(false); }
   };
 
-  return { configured: !!client, event, participants, loading, notFound, error, notice, busy, status, refresh, move };
+  const rename = async (team: number, name: string): Promise<boolean> => {
+    if (!client || !event?.is_open || mutation.current) return false;
+    mutation.current = true; setBusy(true); setNotice("");
+    try {
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session) {
+        const { error: signInError } = await client.auth.signInAnonymously();
+        if (signInError) throw signInError;
+      }
+      const { data, error: renameError } = await client.rpc("rename_team", { p_event_id: event.id, p_team_number: team, p_name: name }).abortSignal(AbortSignal.timeout(15000));
+      if (renameError) throw renameError;
+      setTeams((current) => mergeTeams(current, [data]));
+      setNotice("Team name saved.");
+      return true;
+    } catch (e) {
+      setNotice(friendlyError(e, "Couldn't save the team name. Please try again."));
+      await refresh();
+      return false;
+    } finally { mutation.current = false; setBusy(false); }
+  };
+
+  return { configured: !!client, event, participants, teams, loading, notFound, error, notice, busy, status, refresh, move, rename };
 }

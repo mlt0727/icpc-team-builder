@@ -14,16 +14,21 @@
 
 学生页面右上角的小锁图标通往密码管理入口，不显示醒目的管理按钮。页面不询问身份，任何人都能从姓名卡片任意位置拖动任意学生，帮队友入队；手机长按卡片拖动。管理页可创建活动、批量添加学生、复制链接、关闭/重新开放活动，并查看离队/换队记录。每次创建活动都生成独立名单和独立链接，旧活动不会被覆盖；每队始终最多 3 人。网站根路径 `/` 自动跳转第一场活动。
 
+手机端采用左右双栏：左侧未分组名单，右侧队伍，两栏各自上下滚动。长按姓名拖拽，停留在栏的顶部或底部边缘可自动滚动。电脑端保留完整网格布局。
+
+点击队名可直接编辑，按 Enter 或点击其他位置保存，Escape 取消；清空后恢复 `Team N`。队名最长 40 字符，实时同步并保留队伍编号。沿用无身份选择的协作方式，任何访问者均可修改队名；关闭活动后不能修改。
+
 ## 1. 创建和初始化 Supabase
 
 1. 在 Supabase 创建项目，数据库密码自己保管。GitHub 集成可跳过。
 2. 保留 **Enable Data API**；可以关闭自动暴露新表，SQL 会显式授权。
-3. 在项目 **SQL Editor → New query** 中按顺序运行以下两个完整文件：
+3. 在项目 **SQL Editor → New query** 中按顺序运行以下三个完整文件：
    - [`202609290001_team_builder.sql`](supabase/migrations/202609290001_team_builder.sql)：基础表、20 人名单、原子分队 RPC。
    - [`202609290002_open_moves_and_history.sql`](supabase/migrations/202609290002_open_moves_and_history.sql)：自由拖拽、离队记录、关闭旧的姓名认领接口。
-   如果已经运行过第一个文件，只需运行第二个。以后重跑初始化时仍按此顺序。
+   - [`202609290003_team_names.sql`](supabase/migrations/202609290003_team_names.sql)：可编辑队名、服务端验证和队名实时同步。
+   已有项目只需继续运行尚未执行的迁移。以后重跑初始化时仍按此顺序。
 4. 在 **Authentication → Sign In / Providers** 开启 **Allow anonymous sign-ins** 并保存。
-5. SQL 已把 `public.participants` 和 `public.events` 加入 `supabase_realtime` publication。可以在 Database → Publications 验证两张表已启用。无需轮询。
+5. SQL 已把 `public.participants`、`public.events` 和 `public.teams` 加入 `supabase_realtime` publication。可以在 Database → Publications 验证三张表已启用。无需轮询。
 
 SQL 会创建表、RLS、原子 RPC 并导入全部 20 个指定姓名。可重复执行，**不会重置已有队伍或记录**。在 SQL Editor 执行时，`DROP POLICY/TRIGGER IF EXISTS` 可能触发通用警告；它们用于重建本应用的访问策略和版本触发器，不删除学生记录。请使用本应用独立的 Supabase 项目。
 
@@ -121,6 +126,6 @@ npm run test:db
 
 用管理页建一场独立测试活动；在两个不同浏览器直接移动同一名测试学生，验证无身份弹窗、拖拽/触屏、实时更新、刷新后分组保留、满队拒绝、关闭活动后的只读状态，再到管理页核对离队/换队记录。正式 20 人保持初始未分队，直到学生自己使用。
 
-排错：无法读表时检查 SQL 是否执行、Data API 是否开启及 Project URL/key；不能移动时检查 Anonymous Sign-Ins；不显示 Live 时检查两张表的 Realtime publication 与网络；管理员不能登录时检查服务端三个环境变量及 `check_admin_login_limit` RPC；日志查询失败时检查第二个迁移是否执行。不要把原始数据库错误或密钥贴给学生。
+排错：无法读表时检查 SQL 是否执行、Data API 是否开启及 Project URL/key；不能移动时检查 Anonymous Sign-Ins；不显示 Live 时检查三张表的 Realtime publication 与网络；管理员不能登录时检查服务端三个环境变量及 `check_admin_login_limit` RPC；日志查询失败时检查第二个迁移是否执行；队名无法保存时检查第三个迁移。不要把原始数据库错误或密钥贴给学生。
 
 官方参考：[Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys) · [Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) · [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs)

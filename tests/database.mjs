@@ -14,6 +14,7 @@ const database = `icpc_test_${randomUUID().replaceAll('-', '')}`;
 const root = new pg.Client({ connectionString: address });
 const migration = (await Promise.all([
   '202609290001_team_builder.sql', '202609290002_open_moves_and_history.sql',
+  '202609290003_team_names.sql',
 ].map((name) => readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), 'utf8')))).join('\n');
 
 test('PostgreSQL security, persistence, and concurrent moves', async (t) => {
@@ -161,9 +162,29 @@ test('PostgreSQL security, persistence, and concurrent moves', async (t) => {
       const results = await Promise.all(Array.from({length:20}, () => asUser(null, 'select check_admin_login_limit($1) as allowed', [key], 'service_role')));
       assert.equal(results.filter((r) => r.rows[0].allowed).length, 10);
     });
-    await t.test('Realtime publication includes both participant and event updates', async () => {
+    await t.test('team renaming validates input, survives migrations, and cannot bypass closed events or RLS', async () => {
+      const rename = (uid, number, name) => asUser(uid, 'select * from rename_team($1,$2,$3)', [event.id, number, name]);
+      const renamed = (await rename(users[0], 1, '  Binary   Trees  ')).rows[0];
+      assert.equal(renamed.name, 'Binary Trees');
+      assert.equal(renamed.version, 2);
+      assert.equal((await rename(users[0], 1, 'Binary Trees')).rows[0].version, 2);
+      await assert.rejects(rename(users[0], 1, 'x'.repeat(41)), /INVALID_TEAM_NAME/);
+      await assert.rejects(rename(users[0], 99, 'No team'), /INVALID_TEAM/);
+      await assert.rejects(rename(null, 1, 'No session'), /AUTH_REQUIRED/);
+      await assert.rejects(asUser(null, 'select rename_team($1,1,$2)', [event.id, 'Anon'], 'anon'), /permission denied/);
+      await assert.rejects(asUser(users[0], "update teams set name='Bypass'"), /permission denied/);
+      await pool.query(migration);
+      assert.equal((await pool.query('select name from teams where event_id=$1 and team_number=1', [event.id])).rows[0].name, 'Binary Trees');
+      await pool.query('update events set is_open=false where id=$1', [event.id]);
+      await assert.rejects(rename(users[0], 1, 'Closed'), /EVENT_CLOSED/);
+      await pool.query('update events set is_open=true where id=$1', [event.id]);
+      assert.equal((await rename(users[1], 1, '   ')).rows[0].name, null);
+      const other = (await pool.query("select id from events where slug='spring-2027'")).rows[0];
+      assert.equal((await pool.query('select name from teams where event_id=$1 and team_number=1', [other.id])).rows[0].name, null);
+    });
+    await t.test('Realtime publication includes participant, event, and team name updates', async () => {
       const rows = (await pool.query("select tablename from pg_publication_tables where pubname='supabase_realtime' order by tablename")).rows;
-      assert.deepEqual(rows.map((r) => r.tablename), ['events','participants']);
+      assert.deepEqual(rows.map((r) => r.tablename), ['events','participants','teams']);
     });
   } finally {
     if (pool) await pool.end();

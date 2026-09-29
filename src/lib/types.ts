@@ -20,6 +20,24 @@ export type Participant = {
   version: number;
 };
 
+export type Team = {
+  event_id: string;
+  team_number: number;
+  name: string | null;
+  version: number;
+};
+
+export const teamLabel = (team: Team | undefined, number: number) => team?.name || `Team ${number}`;
+
+export function mergeTeams(current: Team[], incoming: Team[]) {
+  const key = (team: Team) => `${team.event_id}:${team.team_number}`;
+  const map = new Map(current.map((team) => [key(team), team]));
+  for (const team of incoming) {
+    if (!map.has(key(team)) || team.version >= map.get(key(team))!.version) map.set(key(team), team);
+  }
+  return Array.from(map.values());
+}
+
 export type TeamDeparture = {
   id: number;
   event_id: string;
@@ -40,10 +58,11 @@ type Table<Row> = {
 
 export type Database = {
   public: {
-    Tables: { events: Table<TeamEvent>; participants: Table<Participant>; team_departures: Table<TeamDeparture> };
+    Tables: { events: Table<TeamEvent>; teams: Table<Team>; participants: Table<Participant>; team_departures: Table<TeamDeparture> };
     Views: Record<string, never>;
     Functions: {
       move_participant: { Args: { p_participant_id: string; p_team_number: number | null }; Returns: Participant };
+      rename_team: { Args: { p_event_id: string; p_team_number: number; p_name: string }; Returns: Team };
       admin_create_event: { Args: { p_title: string; p_slug: string; p_team_count: number; p_names: string[] }; Returns: TeamEvent };
       admin_add_participants: { Args: { p_event_id: string; p_names: string[] }; Returns: number };
       check_admin_login_limit: { Args: { p_key: string }; Returns: boolean };

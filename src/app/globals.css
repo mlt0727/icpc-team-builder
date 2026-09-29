@@ -28,6 +28,16 @@ h3 { font-weight:600; }
 .board-notice { margin-bottom:18px; font-size:12px; }
 .drop-zone { background:white; border:1px solid var(--line); border-radius:12px; padding:18px; }
 .zone-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.team-title { min-width:0; flex:1; }
+.team-number { display:block; font-size:10px; color:var(--muted); margin-bottom:3px; }
+.team-name-button { display:flex; align-items:center; gap:7px; text-align:left; width:100%; min-height:32px; border:0; padding:2px 0; background:transparent; color:inherit; font-weight:600; overflow-wrap:anywhere; }
+.team-name-button span { min-width:0; }
+.team-name-button svg { flex-shrink:0; color:#879b90; }
+.team-name-button:hover:not(:disabled) { color:var(--green); }
+.team-name-button:disabled { opacity:1; cursor:default; }
+.team-name-button:disabled svg { display:none; }
+.team-name-form input { width:100%; min-width:0; min-height:36px; border:1px solid #80ad9a; border-radius:5px; padding:5px; background:white; color:var(--ink); font-size:16px; }
+.team-name-help { display:block; font-size:10px; color:var(--muted); margin-top:4px; line-height:1.3; }
 .unassigned-zone { margin-bottom:18px; }
 .unassigned-zone h2 { font-size:11px; letter-spacing:1.2px; color:var(--muted); }
 .count { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -133,5 +143,33 @@ h3 { font-weight:600; }
   .drop-zone { padding:16px; }
   .board-hint span { display:block; margin:4px 0 0; }
   .empty-zone { min-height:72px; }
+}
+@media (max-width:720px) {
+  .board-shell { height:100dvh; display:flex; flex-direction:column; padding:16px 10px max(10px,env(safe-area-inset-bottom)); overflow:hidden; }
+  .board-shell .board-header { gap:10px; margin-bottom:10px; flex-shrink:0; }
+  .board-shell .eyebrow { margin-bottom:4px; font-size:10px; }
+  .board-shell h1 { font-size:25px; }
+  .board-shell .board-header .muted { font-size:12px; margin-top:4px; }
+  .board-shell .board-notice { font-size:10px; margin-bottom:10px; flex-shrink:0; }
+  .board-layout { display:grid; grid-template-columns:minmax(0, .92fr) minmax(0, 1.08fr); gap:8px; flex:1; min-height:0; }
+  .roster-column,.teams-column { min-width:0; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; border-radius:9px; }
+  .board-shell .drop-zone { padding:9px; border-radius:9px; }
+  .board-shell .unassigned-zone { margin:0; min-height:100%; }
+  .board-shell .zone-heading { gap:5px; align-items:flex-start; }
+  .board-shell .unassigned-zone .zone-heading { position:sticky; top:-9px; background:white; z-index:1; padding:9px 0; margin-top:-9px; }
+  .board-shell .unassigned-zone h2 { font-size:10px; letter-spacing:.5px; }
+  .board-shell .count { font-size:10px; padding-top:4px; }
+  .board-shell .unassigned-grid { grid-template-columns:minmax(0,1fr); gap:6px; margin-top:6px; }
+  .board-shell .teams-grid { grid-template-columns:minmax(0,1fr); gap:8px; }
+  .board-shell .team-zone { min-height:128px; }
+  .board-shell .team-people { gap:6px; margin-top:8px; }
+  .board-shell .person-card { min-height:44px; padding:8px 5px; gap:3px; font-size:11px; }
+  .board-shell .card-grip svg { width:11px; }
+  .board-shell .team-name-button { font-size:13px; min-height:32px; gap:4px; }
+  .board-shell .empty-zone { min-height:60px; padding:5px; margin-top:8px; font-size:11px; }
+  .board-shell .board-hint { margin-top:8px; font-size:10px; flex-shrink:0; }
+  .board-shell .board-hint span { display:block; margin:2px 0 0; }
+  .board-shell .banner { font-size:11px; padding:8px; margin-bottom:8px; flex-shrink:0; }
+  .board-shell .drag-overlay { max-width:180px; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createAdminToken, verifyAdminToken, passwordMatches, SESSION_SECONDS } from '../src/lib/admin-token.ts';
-import { mergeParticipants, sortParticipants } from '../src/lib/types.ts';
+import { mergeParticipants, mergeTeams, teamLabel, sortParticipants } from '../src/lib/types.ts';
 import { friendlyError } from '../src/lib/messages.ts';
 import { normalizeServerKey, serverKeyKind } from '../src/lib/supabase-server-key.ts';
 
@@ -55,6 +55,15 @@ test('unassigned is alphabetical and teammates retain joining order', () => {
   ];
   assert.deepEqual(sortParticipants(people, null).map((p) => p.id), ['a', 'z']);
   assert.deepEqual(sortParticipants(people, 1).map((p) => p.id), ['c', 'b']);
+});
+test('team names ignore stale updates and remain separate across events', () => {
+  const team = {event_id:'event-a', team_number:1, name:'New name', version:3};
+  const rows = mergeTeams([team], [{...team, name:'Stale', version:2}, {...team, event_id:'event-b', name:'Other event'}]);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].name, 'New name');
+  assert.equal(rows[1].name, 'Other event');
+  assert.equal(teamLabel({...team, name:null}, 1), 'Team 1');
+  assert.equal(teamLabel(team, 1), 'New name');
 });
 test('raw database and network errors are not exposed to users', () => {
   assert.equal(friendlyError({ message: 'TEAM_FULL' }), 'Team is full.');

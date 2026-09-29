@@ -1,9 +1,34 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, rectIntersection, type DragEndEvent } from "@dnd-kit/core";
+import { useRef, useState, type ReactNode } from "react";
+import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, pointerWithin, rectIntersection, type DragEndEvent, type CollisionDetection } from "@dnd-kit/core";
 import { useTeamBoard } from "@/hooks/use-team-board";
 import { fullName, sortParticipants, type Participant } from "@/lib/types";
+
+const collisionDetection: CollisionDetection = (args) => args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args);
+
+function TeamName({ number, name, disabled, onRename }: { number: number; name: string | null; disabled: boolean; onRename: (number: number, name: string) => Promise<boolean> }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const pending = useRef(false);
+  const cancelled = useRef(false);
+  const label = name || `Team ${number}`;
+  async function save() {
+    if (cancelled.current || pending.current) return;
+    if (draft.trim() === (name ?? "")) { setEditing(false); return; }
+    pending.current = true; setSaving(true);
+    try { if (await onRename(number, draft)) setEditing(false); }
+    finally { pending.current = false; setSaving(false); }
+  }
+  return <div className="team-title">
+    {name ? <span className="team-number">Team {number}</span> : null}
+    {editing ? <form className="team-name-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+      <input autoFocus aria-label={`Name for Team ${number}`} value={draft} maxLength={40} placeholder={`Team ${number}`} disabled={saving} onFocus={(e) => e.target.select()} onChange={(e) => setDraft(e.target.value)} onBlur={() => void save()} onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); cancelled.current = true; setEditing(false); } }} />
+      <span className="team-name-help">{saving ? "Saving…" : "Enter or tap away to save"}</span>
+    </form> : <h2><button type="button" className="team-name-button" disabled={disabled} aria-label={`Rename Team ${number}: ${label}`} title="Click to rename" onClick={() => { cancelled.current = false; setDraft(name ?? ""); setEditing(true); }}><span>{label}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z" /><path d="m13 6 5 5" /></svg></button></h2>}
+  </div>;
+}
 
 function Grip() {
   return <svg width="16" height="20" viewBox="0 0 16 20" fill="currentColor" aria-hidden="true">{[5, 10, 15].flatMap((y) => [5, 11].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.3" />))}</svg>;
@@ -17,12 +42,12 @@ function PersonCard({ person, selected, enabled, onSelect }: { person: Participa
   </button>;
 }
 
-function DropZone({ team, count, children, disabled }: { team: number | null; count: number; children: ReactNode; disabled: boolean }) {
+function DropZone({ team, name = null, count, children, disabled, onRename }: { team: number | null; name?: string | null; count: number; children: ReactNode; disabled: boolean; onRename?: (number: number, name: string) => Promise<boolean> }) {
   const { setNodeRef, isOver } = useDroppable({ id: team === null ? "unassigned" : `team-${team}`, disabled });
   const full = team !== null && count >= 3;
   return <section ref={setNodeRef} className={`drop-zone ${team === null ? "unassigned-zone" : "team-zone"} ${isOver ? (full ? "over-full" : "over-zone") : ""}`} aria-label={team === null ? "Unassigned" : `Team ${team}`}>
     <div className="zone-heading">
-      <h2>{team === null ? "UNASSIGNED" : `Team ${team}`}</h2>
+      {team === null ? <h2>UNASSIGNED</h2> : <TeamName number={team} name={name} disabled={disabled} onRename={onRename!} />}
       <span className={`count ${full ? "full-count" : ""}`}>{team === null ? count : `${count} / 3`}</span>
     </div>
     <div className={team === null ? "unassigned-grid" : "team-people"}>{children}</div>
@@ -51,7 +76,7 @@ export function TeamBoard({ slug }: { slug: string }) {
   if (board.loading || !board.event) return <main className="shell small-shell"><h1>ICPC Team Builder</h1><p className="muted mt-3" role="status">{board.error || "Loading teams…"}</p>{board.error ? <button className="button mt-5" onClick={() => void board.refresh()}>Try again</button> : null}</main>;
 
   const unassigned = sortParticipants(board.participants, null);
-  return <main className="shell">
+  return <main className="shell board-shell">
     <header className="board-header">
       <div><p className="eyebrow">{board.event.title}</p><h1>ICPC Team Builder</h1><p className="muted mt-2">Drag any name into a team.</p></div>
       <div className="board-meta">
@@ -64,15 +89,22 @@ export function TeamBoard({ slug }: { slug: string }) {
     {board.error ? <div className="banner error" role="alert">{board.error}<button className="text-button" onClick={() => void board.refresh()}>Retry</button></div> : null}
     <p className="board-notice muted">Anyone can move names. Leaving a team is recorded.</p>
 
-    <DndContext id="team-builder" sensors={sensors} collisionDetection={rectIntersection} onDragStart={({ active }) => { setDraggingId(String(active.id)); setSelectedId(String(active.id)); }} onDragCancel={() => setDraggingId(null)} onDragEnd={onDragEnd} accessibility={{ screenReaderInstructions: { draggable: "Press Space to pick up a name. Use arrow keys to move, Space to drop, and Escape to cancel." } }}>
+    <DndContext id="team-builder" sensors={sensors} collisionDetection={collisionDetection} autoScroll={{ threshold: { x: 0, y: 0.18 }, acceleration: 7 }} onDragStart={({ active }) => { setDraggingId(String(active.id)); setSelectedId(String(active.id)); }} onDragCancel={() => setDraggingId(null)} onDragEnd={onDragEnd} accessibility={{ screenReaderInstructions: { draggable: "Press Space to pick up a name. Use arrow keys to move, Space to drop, and Escape to cancel." } }}>
+      <div className="board-layout">
+      <div className="roster-column" tabIndex={0} aria-label="Unassigned students, scroll to see more">
       <DropZone team={null} count={unassigned.length} disabled={!enabled}>{unassigned.map((p) => <PersonCard key={p.id} person={p} selected={p.id === selectedId} enabled={enabled} onSelect={() => setSelectedId(p.id)} />)}</DropZone>
+      </div>
+      <div className="teams-column" tabIndex={0} aria-label="Teams, scroll to see more">
       <div className="teams-grid">{Array.from({ length: board.event.team_count }, (_, i) => {
         const members = sortParticipants(board.participants, i + 1);
-        return <DropZone key={i + 1} team={i + 1} count={members.length} disabled={!enabled}>{members.map((p) => <PersonCard key={p.id} person={p} selected={p.id === selectedId} enabled={enabled} onSelect={() => setSelectedId(p.id)} />)}</DropZone>;
+        const team = board.teams.find((t) => t.team_number === i + 1);
+        return <DropZone key={i + 1} team={i + 1} name={team?.name} count={members.length} disabled={!enabled} onRename={board.rename}>{members.map((p) => <PersonCard key={p.id} person={p} selected={p.id === selectedId} enabled={enabled} onSelect={() => setSelectedId(p.id)} />)}</DropZone>;
       })}</div>
+      </div>
+      </div>
       <DragOverlay dropAnimation={null}>{dragging ? <div className="person-card selected-card drag-overlay"><Grip /><span className="person-name">{fullName(dragging)}</span></div> : null}</DragOverlay>
     </DndContext>
-    <p className="board-hint">Up to 3 people per team. <span>Drag anywhere on a name card. On mobile, hold a card to drag.</span></p>
+    <p className="board-hint">Up to 3 people per team. Tap a team name to edit it.<span>Hold a card to drag. Drag near the top or bottom edge to scroll.</span></p>
     {board.notice ? <div className="toast" role="status">{board.notice}</div> : null}
   </main>;
 }
