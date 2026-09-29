@@ -1,0 +1,10 @@
+.git
+.env*
+node_modules
+.next
+*.tsbuildinfo
+tests
+supabase
+AGENTS.md
+CLAUDE.md
+VERIFICATION.md
