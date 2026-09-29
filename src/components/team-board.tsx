@@ -36,7 +36,6 @@ export function TeamBoard({ slug }: { slug: string }) {
   const [selectedId, setSelectedId] = useState("");
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 7 } }), useSensor(KeyboardSensor));
   const enabled = !!board.event?.is_open && !board.busy && board.status !== "offline" && !board.error;
-  const selected = board.participants.find((p) => p.id === selectedId);
   const dragging = board.participants.find((p) => p.id === draggingId);
 
   function onDragEnd({ active, over }: DragEndEvent) {
@@ -63,15 +62,9 @@ export function TeamBoard({ slug }: { slug: string }) {
 
     {!board.event.is_open ? <p className="banner">This event is closed. Final teams are shown below.</p> : null}
     {board.error ? <div className="banner error" role="alert">{board.error}<button className="text-button" onClick={() => void board.refresh()}>Retry</button></div> : null}
-    <div className="your-controls">
-      <p className="muted">Anyone can move names. Leaving a team is recorded.</p>
-      <div className="move-menus">
-        <label className="move-select"><span>Student</span><select aria-label="Choose a student to move" disabled={!enabled} value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Choose a name</option>{[...board.participants].sort((a, b) => fullName(a).localeCompare(fullName(b), "en")).map((p) => <option key={p.id} value={p.id}>{fullName(p)}</option>)}</select></label>
-        <label className="move-select"><span>{board.busy ? "Saving…" : "Move to"}</span><select aria-label="Move selected student to a team" disabled={!enabled || !selected} value={selected?.team_number ?? "unassigned"} onChange={(e) => { if (selected) void board.move(selected.id, e.target.value === "unassigned" ? null : Number(e.target.value)); }}><option value="unassigned">Unassigned</option>{Array.from({ length: board.event.team_count }, (_, i) => <option key={i + 1} value={i + 1}>Team {i + 1}{board.participants.filter((p) => p.team_number === i + 1).length >= 3 ? " (full)" : ""}</option>)}</select></label>
-      </div>
-    </div>
+    <p className="board-notice muted">Anyone can move names. Leaving a team is recorded.</p>
 
-    <DndContext id="team-builder" sensors={sensors} collisionDetection={rectIntersection} onDragStart={({ active }) => { setDraggingId(String(active.id)); setSelectedId(String(active.id)); }} onDragCancel={() => setDraggingId(null)} onDragEnd={onDragEnd} accessibility={{ screenReaderInstructions: { draggable: "Press Space to pick up a name. Use arrow keys to move, Space to drop, and Escape to cancel. You can also choose a student and use the Move to menu above the board." } }}>
+    <DndContext id="team-builder" sensors={sensors} collisionDetection={rectIntersection} onDragStart={({ active }) => { setDraggingId(String(active.id)); setSelectedId(String(active.id)); }} onDragCancel={() => setDraggingId(null)} onDragEnd={onDragEnd} accessibility={{ screenReaderInstructions: { draggable: "Press Space to pick up a name. Use arrow keys to move, Space to drop, and Escape to cancel." } }}>
       <DropZone team={null} count={unassigned.length} disabled={!enabled}>{unassigned.map((p) => <PersonCard key={p.id} person={p} selected={p.id === selectedId} enabled={enabled} onSelect={() => setSelectedId(p.id)} />)}</DropZone>
       <div className="teams-grid">{Array.from({ length: board.event.team_count }, (_, i) => {
         const members = sortParticipants(board.participants, i + 1);
@@ -79,7 +72,7 @@ export function TeamBoard({ slug }: { slug: string }) {
       })}</div>
       <DragOverlay dropAnimation={null}>{dragging ? <div className="person-card selected-card drag-overlay"><Grip /><span className="person-name">{fullName(dragging)}</span></div> : null}</DragOverlay>
     </DndContext>
-    <p className="board-hint">Up to 3 people per team. <span>Drag anywhere on a name card. On mobile, hold a card to drag, or use the Move to menu.</span></p>
+    <p className="board-hint">Up to 3 people per team. <span>Drag anywhere on a name card. On mobile, hold a card to drag.</span></p>
     {board.notice ? <div className="toast" role="status">{board.notice}</div> : null}
   </main>;
 }
