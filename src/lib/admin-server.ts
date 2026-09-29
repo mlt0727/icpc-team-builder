@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAdminToken } from "./admin-token";
 import { friendlyError } from "./messages";
+import { normalizeServerKey, serverKeyKind } from "./supabase-server-key";
 import type { Database } from "./types";
 
 export const ADMIN_COOKIE = "icpc_admin_session";
@@ -12,23 +13,25 @@ export class ApiError extends Error {
 }
 
 export function adminConfigured() {
+  const kind = serverKeyKind(process.env.SUPABASE_SECRET_KEY);
   return !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    !!process.env.SUPABASE_SECRET_KEY?.startsWith("sb_secret_") &&
+    (kind === "secret" || kind === "service_role") &&
     (process.env.ADMIN_PASSWORD?.length ?? 0) >= 8 &&
     (process.env.ADMIN_PASSWORD?.length ?? 0) <= 256 &&
     (process.env.ADMIN_SESSION_SECRET?.length ?? 0) >= 32;
 }
 
 export function adminSetupMessage() {
-  if (!process.env.SUPABASE_SECRET_KEY?.startsWith("sb_secret_")) {
-    return "The database connection is not configured yet. Add the Supabase-generated SUPABASE_SECRET_KEY (starts with sb_secret_) in Vercel, then redeploy. This key is separate from your admin password.";
-  }
+  const kind = serverKeyKind(process.env.SUPABASE_SECRET_KEY);
+  if (kind === "missing") return "SUPABASE_SECRET_KEY is missing. Add the Secret key from Supabase Settings > API Keys to Vercel, then redeploy. This key is separate from your admin password.";
+  if (kind === "public") return "SUPABASE_SECRET_KEY contains a public key. Replace it with the Supabase Secret key (sb_secret_) or legacy service_role key, then redeploy.";
+  if (kind === "invalid") return "SUPABASE_SECRET_KEY is present, but its value is not a Supabase server API key. Copy the Secret key (sb_secret_) or legacy service_role key from Supabase Settings > API Keys. Do not use your admin password, database password, or JWT signing secret. Save it in Vercel and redeploy.";
   return "Admin configuration is incomplete. Check the project URL, admin password, and session secret in Vercel, then redeploy.";
 }
 
 export function adminClient() {
   if (!adminConfigured()) throw new ApiError(adminSetupMessage(), 503);
-  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
+  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, normalizeServerKey(process.env.SUPABASE_SECRET_KEY), {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { fetch: (input, init) => fetch(input, {
       ...init,

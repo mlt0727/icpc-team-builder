@@ -35,7 +35,7 @@ SQL 会创建表、RLS、原子 RPC 并导入全部 20 个指定姓名。可重�
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | 项目 Connect 对话框的 Project URL | 是 |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_…` 公共客户端密钥 | 是 |
-| `SUPABASE_SECRET_KEY` | Settings → API Keys 中 `sb_secret_…` 服务端密钥，供管理功能使用 | **否** |
+| `SUPABASE_SECRET_KEY` | Settings → API Keys 中 `sb_secret_…` 服务端密钥，兼容旧版 `service_role` JWT；不能用公开 key、数据库密码或管理密码 | **否** |
 | `ADMIN_PASSWORD` | 自选管理密码，至少 8 字符，最多 256 字符 | **否** |
 | `ADMIN_SESSION_SECRET` | 随机会话签名密钥，至少 32 字符 | **否** |
 

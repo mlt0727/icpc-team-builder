@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createAdminToken, verifyAdminToken, passwordMatches, SESSION_SECONDS } from '../src/lib/admin-token.ts';
 import { mergeParticipants, sortParticipants } from '../src/lib/types.ts';
 import { friendlyError } from '../src/lib/messages.ts';
+import { normalizeServerKey, serverKeyKind } from '../src/lib/supabase-server-key.ts';
 
 const secret = 'test-only-session-secret-of-sufficient-length';
 const password = 'test-only-password';
@@ -24,6 +25,19 @@ test('password comparison rejects wrong and empty passwords', () => {
   assert.equal(passwordMatches(password, password), true);
   assert.equal(passwordMatches(password + 'x', password), false);
   assert.equal(passwordMatches('', password), false);
+});
+test('server configuration accepts secret and legacy service-role keys, never public keys or passwords', () => {
+  const jwt = (role) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ role })).toString('base64url')}.testSignature`;
+  assert.equal(serverKeyKind('  sb_secret_test-only-key\n'), 'secret');
+  assert.equal(serverKeyKind('"sb_secret_test-only-key"'), 'secret');
+  assert.equal(normalizeServerKey(' "sb_secret_test-only-key"\n'), 'sb_secret_test-only-key');
+  assert.equal(serverKeyKind(jwt('service_role')), 'service_role');
+  assert.equal(serverKeyKind(jwt('anon')), 'public');
+  assert.equal(serverKeyKind(jwt('authenticated')), 'public');
+  assert.equal(serverKeyKind('sb_publishable_test-key'), 'public');
+  assert.equal(serverKeyKind('12345678'), 'invalid');
+  assert.equal(serverKeyKind('eyJ.invalid.signature'), 'invalid');
+  assert.equal(serverKeyKind(''), 'missing');
 });
 test('late snapshots and RPC responses cannot roll back newer Realtime state', () => {
   const current = [{ id: 'a', version: 5, team_number: 2 }];
