@@ -15,6 +15,7 @@ const root = new pg.Client({ connectionString: address });
 const migration = (await Promise.all([
   '202609290001_team_builder.sql', '202609290002_open_moves_and_history.sql',
   '202609290003_team_names.sql',
+  '20261013225710_admin_team_count.sql',
 ].map((name) => readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), 'utf8')))).join('\n');
 
 test('PostgreSQL security, persistence, and concurrent moves', async (t) => {
@@ -181,6 +182,43 @@ test('PostgreSQL security, persistence, and concurrent moves', async (t) => {
       assert.equal((await rename(users[1], 1, '   ')).rows[0].name, null);
       const other = (await pool.query("select id from events where slug='spring-2027'")).rows[0];
       assert.equal((await pool.query('select name from teams where event_id=$1 and team_number=1', [other.id])).rows[0].name, null);
+    });
+    await t.test('admin resizing is atomic, preserves members, and rejects occupied teams and public callers', async () => {
+      const resizeEvent = (await asUser(null, "select * from admin_create_event('Resize QA','resize-qa',2,array['Resize Student'])", [], 'service_role')).rows[0];
+      const resize = (count) => asUser(null, 'select * from admin_set_team_count($1,$2)', [resizeEvent.id, count], 'service_role');
+      const student = (await pool.query('select * from participants where event_id=$1', [resizeEvent.id])).rows[0];
+      for (const role of ['anon', 'authenticated']) {
+        await assert.rejects(asUser(users[0], 'select admin_set_team_count($1,3)', [resizeEvent.id], role), /permission denied/);
+      }
+      for (const value of [null, 0, 51]) await assert.rejects(resize(value), /INVALID_TEAM_COUNT/);
+      await assert.rejects(asUser(null, 'select admin_set_team_count($1,3)', [randomUUID()], 'service_role'), /NOT_FOUND/);
+      await asUser(users[0], 'select rename_team($1,1,$2)', [resizeEvent.id, 'Keep this name']);
+      assert.equal((await resize(50)).rows[0].team_count, 50);
+      assert.equal((await pool.query('select * from teams where event_id=$1', [resizeEvent.id])).rowCount, 50);
+      await resize(50); // An unchanged count is safe to retry.
+      await move(users[0], student.id, 50);
+      await assert.rejects(resize(2), /TEAMS_NOT_EMPTY/);
+      assert.equal((await pool.query('select team_count from events where id=$1', [resizeEvent.id])).rows[0].team_count, 50);
+      assert.equal((await pool.query('select team_number from participants where id=$1', [student.id])).rows[0].team_number, 50);
+      await move(users[0], student.id, 1);
+      const before = (await pool.query('select * from participants where id=$1', [student.id])).rows[0];
+      const logsBefore = (await pool.query('select * from team_departures where event_id=$1', [resizeEvent.id])).rows;
+      await pool.query('update events set is_open=false where id=$1', [resizeEvent.id]);
+      await resize(1); // Organizers can also adjust a closed event.
+      assert.deepEqual((await pool.query('select * from participants where id=$1', [student.id])).rows[0], before);
+      assert.deepEqual((await pool.query('select * from team_departures where event_id=$1', [resizeEvent.id])).rows, logsBefore);
+      assert.deepEqual((await pool.query('select team_number,name from teams where event_id=$1', [resizeEvent.id])).rows, [{team_number:1,name:'Keep this name'}]);
+      await resize(2);
+      await pool.query('update events set is_open=true where id=$1', [resizeEvent.id]);
+      await asUser(users[0], 'select rename_team($1,2,$2)', [resizeEvent.id, 'Removed name']);
+      await resize(1); await resize(2);
+      assert.equal((await pool.query('select name from teams where event_id=$1 and team_number=2', [resizeEvent.id])).rows[0].name, null);
+      const race = await Promise.allSettled([resize(1), move(users[0], student.id, 2)]);
+      assert.equal(race.filter((r) => r.status === 'fulfilled').length, 1);
+      assert.match(race.find((r) => r.status === 'rejected').reason.message, /INVALID_TEAM|TEAMS_NOT_EMPTY/);
+      const state = (await pool.query('select e.team_count,p.team_number from events e join participants p on p.event_id=e.id where e.id=$1', [resizeEvent.id])).rows[0];
+      assert.ok(state.team_number <= state.team_count);
+      assert.equal((await pool.query('select team_count from events where id=$1', [event.id])).rows[0].team_count, event.team_count);
     });
     await t.test('Realtime publication includes participant, event, and team name updates', async () => {
       const rows = (await pool.query("select tablename from pg_publication_tables where pubname='supabase_realtime' order by tablename")).rows;

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { friendlyError } from "@/lib/messages";
-import { mergeParticipants, mergeTeams, teamLabel, type Participant, type Team, type TeamEvent } from "@/lib/types";
+import { mergeParticipants, teamLabel, type Participant, type Team, type TeamEvent } from "@/lib/types";
 
 export function useTeamBoard(slug: string) {
   const [client] = useState(getSupabase);
@@ -37,7 +37,9 @@ export function useTeamBoard(slug: string) {
       if (!alive.current || ticket !== generation.current) return false;
       setEvent(nextEvent);
       setParticipants((current) => mergeParticipants(current, data ?? []));
-      setTeams((current) => mergeTeams(current, nextTeams ?? []));
+      // A resize can remove and recreate a team number with a fresh name/version.
+      // Use the complete snapshot; generation prevents older requests winning.
+      setTeams(nextTeams ?? []);
       setNotFound(false);
       setError("");
       setLoading(false);
@@ -76,9 +78,7 @@ export function useTeamBoard(slug: string) {
           setParticipants((current) => mergeParticipants(current, [payload.new as Participant]));
         } else { void resync(); }
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "teams", filter: `event_id=eq.${event.id}` }, (payload) => {
-        setTeams((current) => mergeTeams(current, [payload.new as Team]));
-      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "teams", filter: `event_id=eq.${event.id}` }, () => { void resync(); })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "events", filter: `id=eq.${event.id}` }, () => { void resync(); })
       .subscribe((state) => {
         subscribed = state === "SUBSCRIBED";
@@ -143,9 +143,9 @@ export function useTeamBoard(slug: string) {
         const { error: signInError } = await client.auth.signInAnonymously();
         if (signInError) throw signInError;
       }
-      const { data, error: renameError } = await client.rpc("rename_team", { p_event_id: event.id, p_team_number: team, p_name: name }).abortSignal(AbortSignal.timeout(15000));
+      const { error: renameError } = await client.rpc("rename_team", { p_event_id: event.id, p_team_number: team, p_name: name }).abortSignal(AbortSignal.timeout(15000));
       if (renameError) throw renameError;
-      setTeams((current) => mergeTeams(current, [data]));
+      await refresh();
       setNotice("Team name saved.");
       return true;
     } catch (e) {

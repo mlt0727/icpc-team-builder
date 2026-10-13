@@ -6,6 +6,8 @@ export function friendlyError(error: unknown, fallback = "Couldn't connect. Plea
     AUTH_REQUIRED: "Your session expired. Refresh to reconnect.",
     INVALID_TEAM: "Please choose a valid team.",
     INVALID_TEAM_NAME: "Use a team name of 40 characters or fewer.",
+    INVALID_TEAM_COUNT: "Choose a whole number of teams between 1 and 50.",
+    TEAMS_NOT_EMPTY: "The teams being removed still have students. Move them to other teams or Unassigned first.",
     EVENT_CLOSED: "This event is closed. The final teams are still visible.",
     NOT_FOUND: "This participant or event no longer exists.",
     DUPLICATE_NAME: "A name is repeated or already in this event. Check the list.",

@@ -154,6 +154,20 @@ export function AdminPanel() {
             }}>{selected.is_open ? "Close event" : "Reopen event"}</button>
           </div>
           <form className="mt-7 space-y-3" onSubmit={(e) => {
+            e.preventDefault(); const teamCount = Number(new FormData(e.currentTarget).get("teamCount"));
+            void action(async () => {
+              const data = await request(`events/${selected.id}`, "POST", { action: "set-team-count", teamCount });
+              if (data.event) {
+                setSelected(data.event);
+                setEvents((current) => current.map((event) => event.id === data.event!.id ? data.event! : event));
+                setNotice(`Number of teams updated to ${data.event.team_count}.`);
+              }
+            });
+          }}>
+            <label className="field"><span>Number of teams</span><input key={selected.team_count} name="teamCount" type="number" min={1} max={50} step={1} defaultValue={selected.team_count} required disabled={busy} /><small>1–50 teams. Reducing removes the highest-numbered teams and their names. Those teams must be empty.</small></label>
+            <button className="button" disabled={busy}>Update team count</button>
+          </form>
+          <form className="mt-7 space-y-3" onSubmit={(e) => {
             e.preventDefault(); const form = e.currentTarget; const names = new FormData(form).get("names");
             void action(async () => { const data = await request(`events/${selected.id}`, "POST", { action: "add", names }); form.reset(); await selectEvent(selected); setNotice(`Added ${data.added} students.`); });
           }}><label className="field"><span>Add students</span><textarea name="names" rows={3} placeholder="One full name per line" required maxLength={51000} /></label><button className="button primary" disabled={busy}>Add students</button></form>

@@ -29,15 +29,6 @@ export type Team = {
 
 export const teamLabel = (team: Team | undefined, number: number) => team?.name || `Team ${number}`;
 
-export function mergeTeams(current: Team[], incoming: Team[]) {
-  const key = (team: Team) => `${team.event_id}:${team.team_number}`;
-  const map = new Map(current.map((team) => [key(team), team]));
-  for (const team of incoming) {
-    if (!map.has(key(team)) || team.version >= map.get(key(team))!.version) map.set(key(team), team);
-  }
-  return Array.from(map.values());
-}
-
 export type TeamDeparture = {
   id: number;
   event_id: string;
@@ -65,6 +56,7 @@ export type Database = {
       rename_team: { Args: { p_event_id: string; p_team_number: number; p_name: string }; Returns: Team };
       admin_create_event: { Args: { p_title: string; p_slug: string; p_team_count: number; p_names: string[] }; Returns: TeamEvent };
       admin_add_participants: { Args: { p_event_id: string; p_names: string[] }; Returns: number };
+      admin_set_team_count: { Args: { p_event_id: string; p_team_count: number }; Returns: TeamEvent };
       check_admin_login_limit: { Args: { p_key: string }; Returns: boolean };
     };
     Enums: Record<string, never>;

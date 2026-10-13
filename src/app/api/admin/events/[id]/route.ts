@@ -16,6 +16,14 @@ export async function POST(request: Request, { params }: Context) {
     const client = await requireAdmin();
     const id = uuidFrom((await params).id);
     const body = await readJson(request);
+    if (body.action === "set-team-count") {
+      if (typeof body.teamCount !== "number" || !Number.isInteger(body.teamCount) || body.teamCount < 1 || body.teamCount > 50) {
+        throw new ApiError("Choose a whole number of teams between 1 and 50.", 400);
+      }
+      const { data, error } = await client.rpc("admin_set_team_count", { p_event_id: id, p_team_count: body.teamCount });
+      if (error) throw error;
+      return json({ event: data });
+    }
     if (body.action === "add") {
       const names = namesFrom(body.names);
       if (!names.length) throw new ApiError("Enter at least one name.", 400);

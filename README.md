@@ -20,12 +20,15 @@
 
 ## 1. 创建和初始化 Supabase
 
+管理员选中活动后，可在 **Number of teams → Update team count** 调整为 1–50 队。增加时在末尾补队；减少时移除编号最大的空队及其队名。有学生的待移除队伍会阻止保存，需先移出成员。其余分组及历史记录保留，关闭的活动也可调整；学生页会自动同步。
+
 1. 在 Supabase 创建项目，数据库密码自己保管。GitHub 集成可跳过。
 2. 保留 **Enable Data API**；可以关闭自动暴露新表，SQL 会显式授权。
-3. 在项目 **SQL Editor → New query** 中按顺序运行以下三个完整文件：
+3. 在项目 **SQL Editor → New query** 中按顺序运行以下四个完整文件：
    - [`202609290001_team_builder.sql`](supabase/migrations/202609290001_team_builder.sql)：基础表、20 人名单、原子分队 RPC。
    - [`202609290002_open_moves_and_history.sql`](supabase/migrations/202609290002_open_moves_and_history.sql)：自由拖拽、离队记录、关闭旧的姓名认领接口。
    - [`202609290003_team_names.sql`](supabase/migrations/202609290003_team_names.sql)：可编辑队名、服务端验证和队名实时同步。
+   - [`20261013225710_admin_team_count.sql`](supabase/migrations/20261013225710_admin_team_count.sql)：管理员原子增减活动队数，阻止移除仍有学生的队伍。
    已有项目只需继续运行尚未执行的迁移。以后重跑初始化时仍按此顺序。
 4. 在 **Authentication → Sign In / Providers** 开启 **Allow anonymous sign-ins** 并保存。
 5. SQL 已把 `public.participants`、`public.events` 和 `public.teams` 加入 `supabase_realtime` publication。可以在 Database → Publications 验证三张表已启用。无需轮询。
