@@ -1,134 +1,144 @@
 # ICPC Team Builder
 
-一个可重复使用的 ICPC 分队工具。Next.js + TypeScript + Tailwind CSS + dnd-kit；Supabase PostgreSQL、Anonymous Auth 和 Realtime；部署到 Vercel。
+A reusable ICPC team-formation tool built with Next.js, TypeScript, Tailwind CSS, and dnd-kit; backed by Supabase PostgreSQL, Anonymous Auth, and Realtime; and deployed on Vercel.
 
-当前项目：[GitHub 私有仓库](https://github.com/mlt0727/icpc-team-builder) · [正式学生页](https://icpc-team-builder-six.vercel.app/e/icpc-2026) · [管理页](https://icpc-team-builder-six.vercel.app/admin)。Vercel 已连接此仓库，`main` 为正式部署分支；后续推送由 Git 集成自动部署。环境变量在 Vercel 项目设置中管理，不提交到仓库。
+Project links: [GitHub repository](https://github.com/mlt0727/icpc-team-builder) · [Student page](https://icpc-team-builder-six.vercel.app/e/icpc-2026) · [Admin page](https://icpc-team-builder-six.vercel.app/admin). Vercel is connected to this repository, with `main` as the production branch. Subsequent pushes deploy automatically through the Git integration. Environment variables are managed in Vercel project settings and are not committed to the repository.
 
-## 两类网址
+## Student and admin URLs
 
-| 用途 | 路径 |
+| Purpose | Path |
 | --- | --- |
-| 第一场活动，已预置指定的 20 人、7 队 | `/e/icpc-2026` |
-| 后续活动，例如春季训练 | `/e/icpc-spring-2027` |
-| 隐藏的密码管理入口 | `/admin` |
+| First event, preloaded with the specified 20 students and 7 teams | `/e/icpc-2026` |
+| Future events, such as spring training | `/e/icpc-spring-2027` |
+| Discreet, password-protected admin entry | `/admin` |
 
-学生页面右上角的小锁图标通往密码管理入口，不显示醒目的管理按钮。页面不询问身份，任何人都能从姓名卡片任意位置拖动任意学生，帮队友入队；手机长按卡片拖动。管理页可创建活动、批量添加学生、复制链接、关闭/重新开放活动，并查看离队/换队记录。每次创建活动都生成独立名单和独立链接，旧活动不会被覆盖；每队始终最多 3 人。网站根路径 `/` 自动跳转第一场活动。
+A small lock icon at the top right of the student page opens the admin login. The student page does not ask users to identify themselves: anyone can drag any student's name card from any part of the card to help place teammates. On a phone, press and hold a card to drag it. Admins can create events, add students in bulk, copy links, close and reopen events, and inspect departure and team-change records. Every event has its own roster and link; older events are retained. Each team always has a maximum of three students. The root URL, `/`, redirects to the first event.
 
-手机端采用左右双栏：左侧未分组名单，右侧队伍，两栏各自上下滚动。长按姓名拖拽，停留在栏的顶部或底部边缘可自动滚动。电脑端保留完整网格布局。
+On mobile, the page uses two independently scrolling columns: unassigned students on the left and teams on the right. Hold a name to drag it; pausing near the top or bottom edge of a column scrolls that column automatically. Desktop retains the full grid layout.
 
-点击队名可直接编辑，按 Enter 或点击其他位置保存，Escape 取消；清空后恢复 `Team N`。队名最长 40 字符，实时同步并保留队伍编号。沿用无身份选择的协作方式，任何访问者均可修改队名；关闭活动后不能修改。
+Click a team name to edit it. Press Enter or click elsewhere to save; press Escape to cancel. Clearing the name restores `Team N`. Names support up to 40 characters, synchronize in real time, and retain the team number. As with student moves, any visitor can edit team names without selecting an identity. Closed events do not allow name changes.
 
-## 1. 创建和初始化 Supabase
+## 1. Create and initialize Supabase
 
-管理员选中活动后，可在 **Number of teams → Update team count** 调整为 1–50 队。增加时在末尾补队；减少时移除编号最大的空队及其队名。有学生的待移除队伍会阻止保存，需先移出成员。其余分组及历史记录保留，关闭的活动也可调整；学生页会自动同步。
+After selecting an event, admins can use **Number of teams → Update team count** to set 1–50 teams. Increasing the count appends teams. Decreasing it removes the highest-numbered empty teams and their names. If a team scheduled for removal has students, saving is blocked until those students are moved out. Other assignments and history remain intact. Team counts can also be changed for closed events, and student pages synchronize automatically.
 
-1. 在 Supabase 创建项目，数据库密码自己保管。GitHub 集成可跳过。
-2. 保留 **Enable Data API**；可以关闭自动暴露新表，SQL 会显式授权。
-3. 在项目 **SQL Editor → New query** 中按顺序运行以下四个完整文件：
-   - [`202609290001_team_builder.sql`](supabase/migrations/202609290001_team_builder.sql)：基础表、20 人名单、原子分队 RPC。
-   - [`202609290002_open_moves_and_history.sql`](supabase/migrations/202609290002_open_moves_and_history.sql)：自由拖拽、离队记录、关闭旧的姓名认领接口。
-   - [`202609290003_team_names.sql`](supabase/migrations/202609290003_team_names.sql)：可编辑队名、服务端验证和队名实时同步。
-   - [`20261013225710_admin_team_count.sql`](supabase/migrations/20261013225710_admin_team_count.sql)：管理员原子增减活动队数，阻止移除仍有学生的队伍。
-   已有项目只需继续运行尚未执行的迁移。以后重跑初始化时仍按此顺序。
-4. 在 **Authentication → Sign In / Providers** 开启 **Allow anonymous sign-ins** 并保存。
-5. SQL 已把 `public.participants`、`public.events` 和 `public.teams` 加入 `supabase_realtime` publication。可以在 Database → Publications 验证三张表已启用。无需轮询。
+1. Create a Supabase project and keep its database password private. The GitHub integration is optional.
+2. Keep **Enable Data API** enabled. Automatic exposure of new tables can be disabled; the SQL explicitly grants the required access.
+3. In **SQL Editor → New query**, run these four complete files in order:
+   - [`202609290001_team_builder.sql`](supabase/migrations/202609290001_team_builder.sql): base tables, the 20-student roster, and atomic team-assignment RPCs.
+   - [`202609290002_open_moves_and_history.sql`](supabase/migrations/202609290002_open_moves_and_history.sql): open dragging, departure history, and removal of the old name-claiming interface.
+   - [`202609290003_team_names.sql`](supabase/migrations/202609290003_team_names.sql): editable team names, server-side validation, and real-time name synchronization.
+   - [`20261013225710_admin_team_count.sql`](supabase/migrations/20261013225710_admin_team_count.sql): atomic admin changes to team counts, preventing removal of occupied teams.
 
-SQL 会创建表、RLS、原子 RPC 并导入全部 20 个指定姓名。可重复执行，**不会重置已有队伍或记录**。在 SQL Editor 执行时，`DROP POLICY/TRIGGER IF EXISTS` 可能触发通用警告；它们用于重建本应用的访问策略和版本触发器，不删除学生记录。请使用本应用独立的 Supabase 项目。
+   Existing projects need only apply migrations that have not yet run. Keep this order when rerunning initialization.
+4. In **Authentication → Sign In / Providers**, enable **Allow anonymous sign-ins** and save.
+5. The SQL adds `public.participants`, `public.events`, and `public.teams` to the `supabase_realtime` publication. Verify all three under **Database → Publications**. Polling is unnecessary.
 
-## 2. 配置环境变量
+The SQL creates tables, RLS policies, and atomic RPCs, and imports all 20 specified names. It is repeatable and **does not reset existing assignments or records**. Running `DROP POLICY/TRIGGER IF EXISTS` in SQL Editor may show a generic warning; these statements recreate the application's access policies and version triggers without deleting student records. Use a dedicated Supabase project for this application.
 
-复制 `.env.example` 为 `.env.local`，填写：
+## 2. Configure environment variables
 
-| 变量 | 来源 / 用途 | 可以进入浏览器？ |
+Copy `.env.example` to `.env.local` and fill in:
+
+| Variable | Source / purpose | Safe in the browser? |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | 项目 Connect 对话框的 Project URL | 是 |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_…` 公共客户端密钥 | 是 |
-| `SUPABASE_SECRET_KEY` | Settings → API Keys 中 `sb_secret_…` 服务端密钥，兼容旧版 `service_role` JWT；不能用公开 key、数据库密码或管理密码 | **否** |
-| `ADMIN_PASSWORD` | 自选管理密码，至少 8 字符，最多 256 字符 | **否** |
-| `ADMIN_SESSION_SECRET` | 随机会话签名密钥，至少 32 字符 | **否** |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL from the project's Connect dialog | Yes |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public client key beginning with `sb_publishable_` | Yes |
+| `SUPABASE_SECRET_KEY` | Server key beginning with `sb_secret_` under Settings → API Keys; the legacy `service_role` JWT is also supported. Do not use the public key, database password, or admin password. | **No** |
+| `ADMIN_PASSWORD` | Your chosen admin password, 8–256 characters | **No** |
+| `ADMIN_SESSION_SECRET` | Random session-signing secret, at least 32 characters | **No** |
 
-生成随机会话密钥：
+Generate a random session secret:
 
-```sh
+~~~sh
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
+~~~
 
-数据库密码与管理页面密码是两个独立的密码。网站运行不需要数据库密码。
+The database password and admin-page password are separate. The running website does not need the database password.
 
-`.env.local` 已被 `.gitignore` 排除；不要上传它，也不要把任何服务端变量改成 `NEXT_PUBLIC_` 前缀。代码和交付 ZIP 不包含真实配置。未配置 Supabase 时明确显示 Setup needed，不会显示假名单。仅缺服务端配置时，学生页面仍能工作，管理页会提示配置未完成。
+`.env.local` is excluded by `.gitignore`. Do not upload it or add the `NEXT_PUBLIC_` prefix to any server-only variable. The code and delivery ZIP contain no real configuration. Without Supabase configuration, the site explicitly displays **Setup needed** instead of a fake roster. If only server-side configuration is missing, the student page can still work while the admin page reports the incomplete setup.
 
-## 3. 本地运行
+## 3. Run locally
 
-使用 Node.js **24 LTS**（至少 22.18）：
+Use Node.js **24 LTS**; the minimum supported version is 22.18.
 
-```sh
+~~~sh
 npm install
 npm run dev
-```
+~~~
 
-访问 `http://localhost:3000/e/icpc-2026`；管理员访问 `http://localhost:3000/admin`。
+Open `http://localhost:3000/e/icpc-2026`, or `http://localhost:3000/admin` for administration.
 
-```sh
+~~~sh
 npm run lint
 npm run typecheck
 npm test
 npm run build
 npm start
-```
+~~~
 
-环境变量修改后重启开发服务。`NEXT_PUBLIC_` 值在生产构建时写入前端，部署后修改它们需要重新构建。
+Restart the development server after changing environment variables. `NEXT_PUBLIC_` values are embedded in the frontend during production builds; changing them after deployment requires a rebuild.
 
-## 4. GitHub 与 Vercel 部署
+## 4. Deploy with GitHub and Vercel
 
-1. 将本目录作为独立 GitHub 仓库上传，包含 `package-lock.json` 和 SQL，排除 `.env.local`、`node_modules`、`.next`。
-2. 在 Vercel 选择 **Add New → Project**，导入此 GitHub 仓库。框架选择 Next.js；如果仓库根目录就是本目录，Root Directory 保持默认。
-3. Node.js 选择 24.x；Build Command 使用 `npm run build`，其他构建设置保持框架默认。
-4. 在 Vercel 的 Environment Variables 添加上表 **全部 5 个变量**。服务端三个值仅供服务器使用。Production 环境必填；Preview 环境可用独立 Supabase 项目，避免测试影响正式名单。
-5. 点击 Deploy。以后 GitHub 的代码更新可触发 Vercel 自动部署；新 SQL 迁移需要在 Supabase 执行。
-6. 在 Supabase 的 Authentication → URL Configuration 中将 Site URL 设置为生产网址。此应用不使用邮件或 OAuth 回调。
-7. 打开 `https://你的域名/admin`，用 `ADMIN_PASSWORD` 登录。把每场活动的 `/e/活动标识` 链接发给学生。
+1. Upload this directory as a separate GitHub repository. Include `package-lock.json` and the SQL files; exclude `.env.local`, `node_modules`, and `.next`.
+2. In Vercel, choose **Add New → Project** and import the repository. Select Next.js as the framework. Leave Root Directory at its default if this directory is the repository root.
+3. Select Node.js 24.x and `npm run build` as the Build Command. Keep the other framework defaults.
+4. Add **all five variables** from the table to Vercel Environment Variables. The three server-only values must remain on the server. They are required for Production; use a separate Supabase project for Preview if testing must not affect the production roster.
+5. Select **Deploy**. Later code pushes can trigger automatic Vercel deployments. New SQL migrations must still be applied in Supabase.
+6. Under Supabase **Authentication → URL Configuration**, set Site URL to the production URL. This application does not use email or OAuth callbacks.
+7. Open `https://your-domain/admin` and sign in with `ADMIN_PASSWORD`. Share each event's `/e/event-slug` link with students.
 
-**Supabase 不需要连接 GitHub 仓库才能工作。** 网站部署在 Vercel，通过环境变量连接 Supabase。只有初次建库或升级数据库结构需要执行 SQL；以后新增活动、添加学生直接在管理页完成。
+**Supabase does not need a GitHub connection to work.** Vercel hosts the website and connects to Supabase through environment variables. SQL is needed for initial database setup and schema upgrades. Subsequent event creation and student additions happen in the admin page.
 
-## 日常使用
+## Day-to-day use
 
-- **新活动**：进入 `/admin` → 填活动名称、唯一网址标识、队伍数量、学生姓名（每行一个）→ Create event → Copy link。
-- **补充学生**：选择已有活动 → Add students。重复姓名会拒绝，整批操作失败时不留下半批数据。同名学生需加区分标记。
-- **保存最终分组**：Close event。学生仍可查看，但不能换队；Reopen event 恢复操作。旧活动始终保留，不自动清空。
-- **检查异常移出**：选中活动，查看 **Departures & team changes**。记录包括被移动的姓名、原队伍、去向、时间和操作浏览器匿名编号；管理页可见时每 5 秒自动更新，也可点 Refresh，Load older records 查看更早记录。管理界面不能编辑或删除记录。
-- **变更管理员密码**：修改服务器/Vercel 的 `ADMIN_PASSWORD` 后重新部署。已有管理会话立即失效；学生身份和分组不受影响。
+- **Create an event:** open `/admin`, enter the event name, unique URL slug, team count, and student names (one per line), then select **Create event → Copy link**.
+- **Add students:** select an existing event and use **Add students**. Duplicate names are rejected; a failed batch does not leave partial data. Add distinguishing labels for students who share a name.
+- **Preserve final assignments:** select **Close event**. Students can still view assignments but cannot move anyone. **Reopen event** restores editing. Old events are retained and never cleared automatically.
+- **Inspect unexpected removals:** select an event and view **Departures & team changes**. Each record includes the moved student's name, previous team, destination, time, and the acting browser's anonymous ID. While visible, the admin page refreshes records every five seconds; **Refresh** updates manually, and **Load older records** retrieves earlier entries. The admin interface cannot edit or delete records.
+- **Change the admin password:** update `ADMIN_PASSWORD` on the server or in Vercel and redeploy. Existing admin sessions become invalid immediately; student sessions and assignments are unaffected.
 
-## 数据与权限
+## Data and permissions
 
-- `events` 隔离活动，`teams` 提供每场活动的队伍行锁，`participants` 保存学生和分组。历史版本的 `claimed_by` 列保留以安全升级，但不再参与访问控制。
-- 打开页面不询问姓名。首次移动时静默建立 Supabase 匿名会话，用于记录操作浏览器；任何匿名用户都可移动活动里的任意学生。
-- 所有访客可读取公共分组数据；直接插入、修改、删除表全部被撤销授权。学生只能执行移动 RPC，不能查看、插入、修改或删除日志。
-- RPC 从 `auth.uid()` 识别操作浏览器，锁定学生，再锁定目标队伍、检查容量并更新，所有步骤在同一事务完成。
-- 每队只有 `team_slot = 1,2,3`，且 `(event_id, team_number, team_slot)` 唯一。这一数据库约束进一步保证不能出现第 4 人，即使客户端被篡改。
-- Realtime 订阅按活动过滤。重新连接、网络恢复或重新显示页面时重读快照；`version` 防止旧响应覆盖新状态。无定时轮询，拖动成功前不假装已保存。
-- 管理 RPC 仅允许 `service_role`，由验证管理会话后的服务器使用 Secret key 调用。8 小时 HttpOnly/SameSite cookie、HMAC 签名、同源写请求验证；管理登录按来源在数据库中限流（每 15 分钟 10 次），多实例共享。
-- `team_departures` 由数据库触发器追加记录：原队伍非空且发生变化时记录，涵盖队伍 → 另一个队伍及队伍 → Unassigned。首次入队、原地不动、被拒绝的操作不记为离队。日志与移动同事务提交；日志写入失败时移动也回滚。
-- 日志仅管理员可读，不加入公共 Realtime publication。保存姓名快照和操作 UUID；正常界面无清空记录入口。数据库所有者仍有数据库级管理权限。
-- 学生名单和分组是公共可读数据；活动 URL 不提供保密访问。`/admin` 的安全来自服务端密码验证，隐藏链接只是界面安排。
-- 匿名编号不能证明现实中是谁操作；清除浏览数据或换设备会生成不同编号，不采集 IP 地址。学生无需重新认领任何姓名。参见 [Anonymous Sign-Ins](https://supabase.com/docs/guides/auth/auth-anonymous)。
+- `events` separates events, `teams` provides per-event team row locks, and `participants` stores students and assignments. The legacy `claimed_by` column remains for safe upgrades but no longer controls access.
+- Opening the page does not ask for a name. The first move silently creates a Supabase anonymous session to record the acting browser. Any anonymous user can move any student in an event.
+- All visitors can read public assignment data. Direct table inserts, updates, and deletes are denied. Students can execute move RPCs but cannot read, insert, update, or delete history records.
+- Each RPC identifies the browser through `auth.uid()`, locks the student, locks the destination team, checks capacity, and updates the assignment in a single transaction.
+- Each team supports only `team_slot = 1,2,3`, with a unique `(event_id, team_number, team_slot)` constraint. This database constraint prevents a fourth member even if a client is modified.
+- Realtime subscriptions are filtered by event. Reconnection, network recovery, or making the page visible again reloads a snapshot; `version` prevents older responses from overwriting newer state. Student assignment updates do not use scheduled polling or appear saved before the move succeeds.
+- Admin RPCs allow only `service_role` and are called by the server with the Secret key after verifying the admin session. Sessions use an eight-hour HttpOnly/SameSite cookie, an HMAC signature, and same-origin validation for writes. Admin login is rate-limited by source in the database to ten attempts per 15 minutes, shared across application instances.
+- A database trigger appends `team_departures` records whenever a nonempty previous team changes, covering both team-to-team and team-to-Unassigned moves. First assignments, no-op moves, and rejected operations are not departures. History and the move commit in the same transaction; a history-write failure rolls back the move.
+- Only admins can read history, which is excluded from the public Realtime publication. Records retain a name snapshot and the acting UUID. The normal interface has no history-clearing action; database owners retain database-level administrative access.
+- Rosters and assignments are publicly readable. Event URLs do not provide confidential access. Server-side password verification secures `/admin`; the discreet link is only a presentation choice.
+- An anonymous ID cannot prove who acted in real life. Clearing browser data or changing devices creates a different ID. IP addresses are not collected. Students do not need to reclaim names. See [Anonymous Sign-Ins](https://supabase.com/docs/guides/auth/auth-anonymous).
 
-## 数据库回归测试
+## Database regression tests
 
-`npm test` 验证管理会话签名/篡改/过期、密码比较、旧快照合并、排序和错误脱敏。
+`npm test` checks admin-session signing, tampering and expiry, password comparison, merging older snapshots, sorting, and error sanitization.
 
-`npm run test:db` 使用真实 PostgreSQL 的独立连接，覆盖 20 人同时抢 3 个席位、任意浏览器帮人换队、离队日志内容、日志失败时事务回滚、RLS、日志读取/删除限制、跨活动隔离、SQL 重跑持久性、原子添加、管理登录限流。需要本地临时 PostgreSQL：
+`npm run test:db` uses a separate connection to real PostgreSQL. It covers 20 students competing for three slots concurrently, moving students from any browser, departure-record contents, rollback after history-write failure, RLS, history read/delete restrictions, cross-event isolation, persistence when SQL is rerun, atomic student additions, and admin-login rate limiting. It requires a temporary local PostgreSQL instance:
 
-```powershell
-$env:TEST_DATABASE_URL = 'postgresql://postgres:本地测试密码@127.0.0.1:5432/postgres'
+~~~powershell
+$env:TEST_DATABASE_URL = 'postgresql://postgres:local-test-password@127.0.0.1:5432/postgres'
 npm run test:db
-```
+~~~
 
-测试只接受 loopback 地址，自动创建并删除随机 `icpc_test_…` 数据库；不修改连接 URL 指向的业务数据库。不需要在 Supabase 生产库里创建假学生。独立数据库中的 `auth.uid()` 使用测试桩，线上 JWT 验证由 Supabase Auth 执行。
+The tests accept only loopback addresses and automatically create and delete a randomly named `icpc_test_…` database. They do not modify the application database named in the connection URL. No fake students are needed in production Supabase. The isolated database uses a test stub for `auth.uid()`; production JWT validation is handled by Supabase Auth.
 
-## 上线验收
+## Deployment acceptance checks
 
-用管理页建一场独立测试活动；在两个不同浏览器直接移动同一名测试学生，验证无身份弹窗、拖拽/触屏、实时更新、刷新后分组保留、满队拒绝、关闭活动后的只读状态，再到管理页核对离队/换队记录。正式 20 人保持初始未分队，直到学生自己使用。
+Create a separate test event in the admin page. In two different browsers, move the same test student and verify the absence of an identity prompt, mouse/touch dragging, real-time updates, persistence after refresh, rejection of full teams, and read-only behavior after closing the event. Then check departure and team-change records in the admin page. Leave the production roster's 20 students initially unassigned until students use it themselves.
 
-排错：无法读表时检查 SQL 是否执行、Data API 是否开启及 Project URL/key；不能移动时检查 Anonymous Sign-Ins；不显示 Live 时检查三张表的 Realtime publication 与网络；管理员不能登录时检查服务端三个环境变量及 `check_admin_login_limit` RPC；日志查询失败时检查第二个迁移是否执行；队名无法保存时检查第三个迁移。不要把原始数据库错误或密钥贴给学生。
+Troubleshooting:
 
-官方参考：[Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys) · [Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) · [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs)
+- **Cannot read tables:** check that the SQL ran, Data API is enabled, and the Project URL and key are correct.
+- **Cannot move students:** check Anonymous Sign-Ins.
+- **Live is not shown:** check the three tables' Realtime publication and the network connection.
+- **Admin login fails:** check the three server-side environment variables and the `check_admin_login_limit` RPC.
+- **History queries fail:** check that the second migration ran.
+- **Team names cannot be saved:** check that the third migration ran.
+
+Do not show students raw database errors or keys.
+
+Official references: [Supabase API keys](https://supabase.com/docs/guides/getting-started/api-keys) · [Realtime Postgres Changes](https://supabase.com/docs/guides/realtime/postgres-changes) · [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs).
